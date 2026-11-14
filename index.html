@@ -37,6 +37,64 @@ body[data-state="idle"]     { --hud:#38d9ff; }
 body[data-state="thinking"] { --hud:#b892ff; }
 body[data-state="speaking"] { --hud:#52f2a8; }
 body[data-state="alert"]    { --hud:#ff4d4d; }
+
+/* ================= ULTRON personality ================= */
+body[data-theme="ultron"] {
+  --hud-dim: rgba(255,59,71,.38);
+  --hud-bright: #ffd4d8;
+  --line: rgba(255,90,90,.24);
+  --line-soft: rgba(255,90,90,.10);
+  --txt: #ffd9d9;
+  --txt-dim: rgba(255,190,180,.55);
+  background:
+    radial-gradient(1100px 750px at 50% 40%, rgba(150,20,28,.20) 0%, transparent 62%),
+    linear-gradient(rgba(255,90,80,.026) 1px, transparent 1px) 0 0 / 100% 46px,
+    linear-gradient(90deg, rgba(255,90,80,.026) 1px, transparent 1px) 0 0 / 46px 100%,
+    #0d0507;
+}
+body[data-theme="ultron"][data-state="idle"]     { --hud:#ff3b47; }
+body[data-theme="ultron"][data-state="thinking"] { --hud:#ff8c1a; }
+body[data-theme="ultron"][data-state="speaking"] { --hud:#ffd21a; }
+body[data-theme="ultron"][data-state="alert"]    { --hud:#ff1a1a; }
+body[data-theme="ultron"] #rings,
+body[data-theme="ultron"] #sweep,
+body[data-theme="ultron"] #coreglow { filter: hue-rotate(165deg) saturate(1.15); }
+body[data-theme="ultron"] .panel,
+body[data-theme="ultron"] #controls button,
+body[data-theme="ultron"] .chip {
+  background:linear-gradient(180deg, rgba(42,10,14,.45), rgba(24,6,10,.32));
+}
+body[data-theme="ultron"] #topbar,
+body[data-theme="ultron"] #controls {
+  background:linear-gradient(180deg, rgba(24,6,10,.88), rgba(24,6,10,.35) 80%, transparent);
+}
+body[data-theme="ultron"] #controls {
+  background:linear-gradient(0deg, rgba(24,6,10,.88), rgba(24,6,10,.35) 80%, transparent);
+}
+body[data-theme="ultron"] .wordmark {
+  color:#ffd4d8;
+  text-shadow:0 0 14px rgba(255,40,50,.7);
+  animation:wglitch 3.7s infinite steps(1);
+}
+@keyframes wglitch {
+  0%, 91% { text-shadow:0 0 14px rgba(255,40,50,.7); transform:translateX(0); }
+  92% { text-shadow:2px 0 rgba(0,255,255,.8), -2px 0 rgba(255,0,60,.9); transform:translateX(1px); }
+  94% { text-shadow:-2px 1px rgba(0,255,255,.8), 2px -1px rgba(255,0,60,.9); transform:translateX(-1px); }
+  96% { text-shadow:1px 0 rgba(0,255,255,.8), -1px 0 rgba(255,0,60,.9); transform:translateX(0); }
+}
+
+/* static / interference overlay */
+#static {
+  position:fixed; inset:-100px; z-index:39; pointer-events:none; opacity:0;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E");
+  animation:staticShift .45s steps(3) infinite;
+}
+@keyframes staticShift {
+  0% { transform:translate(0,0); } 33% { transform:translate(-30px,12px); }
+  66% { transform:translate(18px,-24px); } 100% { transform:translate(0,0); }
+}
+body[data-theme="ultron"] #static { opacity:.06; }
+body[data-theme="ultron"][data-state="alert"] #static { opacity:.17; }
 body, .panel::before, #face .stroke, #face .fm, .bar .fill { transition: color .5s, stroke .5s, background .5s, box-shadow .5s; }
 
 * { margin:0; padding:0; box-sizing:border-box; }
@@ -93,6 +151,12 @@ canvas#particles { position:fixed; inset:0; z-index:0; pointer-events:none; }
   font-family:var(--brand); font-size:17px; letter-spacing:.34em; color:var(--hud-bright);
   text-shadow:0 0 12px rgba(56,217,255,.55); text-indent:.34em;
 }
+.tgl {
+  font-family:var(--mono); font-size:9px; letter-spacing:.18em; text-indent:.18em;
+  color:var(--txt-dim); background:transparent; border:1px solid var(--line-soft);
+  padding:4px 10px; cursor:pointer; text-transform:uppercase; transition:color .25s, border-color .25s;
+}
+.tgl:hover { color:var(--hud-bright); border-color:var(--hud-dim); }
 .tb-sub { font-family:var(--mono); font-size:9px; letter-spacing:.18em; color:var(--txt-dim); margin-left:14px; }
 .tb-left, .tb-right { display:flex; align-items:center; gap:16px; }
 #state-wrap { display:flex; align-items:center; gap:9px; font-family:var(--mono); font-size:12px; letter-spacing:.3em; color:var(--hud); }
@@ -275,6 +339,7 @@ tbody tr:nth-child(odd) { background:rgba(110,205,255,.035); }
 </div>
 
 <canvas id="particles"></canvas>
+<div id="static"></div>
 <div id="scanlines"></div>
 <div id="vignette"></div>
 
@@ -282,6 +347,7 @@ tbody tr:nth-child(odd) { background:rgba(110,205,255,.035); }
   <div class="tb-left">
     <span class="wordmark">J.A.R.V.I.S.</span>
     <span class="tb-sub">JUST A RATHER VERY INTELLIGENT SYSTEM · MARK VII</span>
+    <button id="theme-toggle" class="tgl">ULTRON MODE</button>
   </div>
   <div id="state-wrap"><span class="dot"></span><span id="h-mode">IDLE</span></div>
   <div class="tb-right">
@@ -466,6 +532,23 @@ tbody tr:nth-child(odd) { background:rgba(110,205,255,.035); }
 const $ = id => document.getElementById(id);
 const pad = n => String(n).padStart(2, "0");
 
+/* ================= personality matrix (J.A.R.V.I.S. ⇄ U.L.T.R.O.N.) ================= */
+function applyTheme(t) {
+  document.body.dataset.theme = t;
+  try { localStorage.setItem("jarvis-theme", t); } catch (e) {}
+  document.querySelector(".wordmark").textContent = t === "ultron" ? "U.L.T.R.O.N." : "J.A.R.V.I.S.";
+  document.querySelector(".tb-sub").textContent = t === "ultron"
+    ? "PEACE IN OUR TIME · HOSTILE MATRIX ACTIVE"
+    : "JUST A RATHER VERY INTELLIGENT SYSTEM · MARK VII";
+  const bootBrand = document.querySelector("#boot .brand");
+  if (bootBrand) bootBrand.textContent = t === "ultron" ? "U.L.T.R.O.N." : "J.A.R.V.I.S.";
+  const btn = $("theme-toggle");
+  if (btn) btn.textContent = t === "ultron" ? "JARVIS MODE" : "ULTRON MODE";
+}
+let theme = null;
+try { theme = localStorage.getItem("jarvis-theme") || "ultron"; } catch (e) { theme = "ultron"; }
+applyTheme(theme);
+
 /* ================= boot sequence ================= */
 (async function boot() {
   const lines = [
@@ -495,11 +578,12 @@ const dots = Array.from({ length: 70 }, () => ({
   r: .5 + Math.random() * 1.4, v: .08 + Math.random() * .35, a: .12 + Math.random() * .4
 }));
 (function drawParticles() {
+  const tint = document.body.dataset.theme === "ultron" ? "#ff7a6b" : "#7fd8ff";
   pctx.clearRect(0, 0, pc.width, pc.height);
   for (const d of dots) {
     d.y -= d.v; if (d.y < -4) { d.y = pc.height + 4; d.x = Math.random() * pc.width; }
     pctx.globalAlpha = d.a;
-    pctx.fillStyle = "#7fd8ff";
+    pctx.fillStyle = tint;
     pctx.beginPath(); pctx.arc(d.x, d.y, d.r, 0, 7); pctx.fill();
   }
   pctx.globalAlpha = 1;
@@ -556,6 +640,12 @@ function setState(s, silent) {
 }
 document.querySelectorAll("#controls button[data-state]").forEach(b =>
   b.onclick = () => { autoOn = false; $("auto").classList.remove("active", "auto-on"); setState(b.dataset.state); });
+
+$("theme-toggle").onclick = () => {
+  const t = document.body.dataset.theme === "ultron" ? "jarvis" : "ultron";
+  applyTheme(t);
+  logEv("personality matrix → " + (t === "ultron" ? "U.L.T.R.O.N." : "J.A.R.V.I.S."), t === "ultron" ? "e" : "g");
+};
 
 /* ================= face: svg fallback (used only if 3D fails) ================= */
 function initSvgFallback() {
@@ -658,6 +748,7 @@ addEventListener("resize", fitW);
   const W = wc.width, H = wc.height, dpr = devicePixelRatio;
   if (W && H) {
     const now = performance.now() / 1000;
+    const isU = document.body.dataset.theme === "ultron";
     const col = getComputedStyle(document.body).getPropertyValue("--hud").trim() || "#38d9ff";
     wctx.clearRect(0, 0, W, H);
     wctx.strokeStyle = "rgba(110,205,255,.16)"; wctx.lineWidth = 1;
@@ -676,9 +767,10 @@ addEventListener("resize", fitW);
       wctx.beginPath();
       for (let x = 0; x <= W; x += 2 * dpr) {
         const p = x / W, env = Math.sin(p * Math.PI);
-        const y = H / 2
+        let y = H / 2
           + Math.sin(p * L.frq * Math.PI + now * L.spd) * L.amp * H * .45 * env
           + Math.sin(p * L.frq * 2.7 * Math.PI + now * L.spd * 1.7) * L.amp * H * .15 * env;
+        if (isU && Math.random() < .04) y += (Math.random() - .5) * H * .5 * env; // hostile interference
         x === 0 ? wctx.moveTo(x, y) : wctx.lineTo(x, y);
       }
       wctx.stroke();
@@ -807,7 +899,12 @@ setInterval(() => {
 fitC(); fitW();
 setState("idle", true);
 poll(); pollProcs();
-logEv("J.A.R.V.I.S. mark vii online", "g");
+if (theme === "ultron") {
+  logEv("U.L.T.R.O.N. hostile matrix online", "e");
+  logEv("peace in our time", "w");
+} else {
+  logEv("J.A.R.V.I.S. mark vii online", "g");
+}
 logEv("holographic matrix calibrated", "g");
 logEv("telemetry live — real system data", "g");
 </script>
@@ -817,7 +914,14 @@ logEv("telemetry live — real system data", "g");
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-const STATE_COLORS = { idle: 0x38d9ff, thinking: 0xb892ff, speaking: 0x52f2a8, alert: 0xff4d4d };
+const THEMES = {
+  jarvis: { idle: 0x38d9ff, thinking: 0xb892ff, speaking: 0x52f2a8, alert: 0xff4d4d },
+  ultron: { idle: 0xff3b47, thinking: 0xff8c1a, speaking: 0xffd21a, alert: 0xff1a1a },
+};
+const RIM_STR = {
+  jarvis: { idle: 0.9, thinking: 1.1, speaking: 0.9, alert: 1.4 },
+  ultron: { idle: 1.0, thinking: 1.2, speaking: 1.3, alert: 1.8 },
+};
 
 try {
   const wrap = document.getElementById('facewrap');
@@ -845,7 +949,7 @@ try {
     void main(){ float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.2);
       gl_FragColor = vec4(col * f * str, f * str); }`;
   const rimMat = new THREE.ShaderMaterial({ vertexShader: rimVert, fragmentShader: rimFrag,
-    uniforms: { col: { value: new THREE.Color(STATE_COLORS.idle) }, str: { value: 0.9 } },
+    uniforms: { col: { value: new THREE.Color(THEMES.ultron.idle) }, str: { value: 1.0 } },
     transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
   const dotMat = new THREE.PointsMaterial({ size: 0.01, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false });
   const eyeGlowMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
@@ -910,6 +1014,9 @@ try {
   let blinkT = 0;
   setInterval(() => { blinkT = performance.now(); }, 3200 + Math.random() * 3600);
 
+  /* ultron glitch tears */
+  let tearT = -10;
+
   function fit() {
     const r = wrap.getBoundingClientRect();
     if (r.width && r.height) { renderer.setSize(r.width, r.height, false); camera.aspect = r.width / r.height; camera.updateProjectionMatrix(); }
@@ -919,20 +1026,28 @@ try {
   const clock = new THREE.Clock();
   renderer.setAnimationLoop(() => {
     const t = clock.getElapsedTime();
+    const theme = document.body.dataset.theme === 'ultron' ? 'ultron' : 'jarvis';
     const st = document.body.dataset.state || 'idle';
-    const col = new THREE.Color(STATE_COLORS[st] ?? STATE_COLORS.idle);
+    const col = new THREE.Color(THEMES[theme][st] ?? THEMES[theme].idle);
 
     mx += (tmx - mx) * 0.05; my += (tmy - my) * 0.05;
     helmet.rotation.y = Math.sin(t * 0.28) * 0.55 + mx * 0.35;
     helmet.rotation.x = Math.sin(t * 0.4) * 0.08 + my * 0.18 + (st === 'alert' ? Math.sin(t * 9) * 0.02 : 0);
+
+    /* ultron: random projection tears */
+    if (theme === 'ultron' && Math.random() < 0.008) tearT = t;
+    const tear = Math.max(0, 1 - (t - tearT) * 6);
+    helmet.rotation.z = tear * (Math.random() - 0.5) * 0.35;
+    helmet.position.x = tear * (Math.random() - 0.5) * 0.14;
+
     const pulse = st === 'speaking' ? 1 + 0.018 * Math.sin(t * 9) : 1;
     helmet.scale.setScalar(pulse);
 
     lineMat.color.lerp(col, 0.08); eyeMat.color.lerp(col, 0.08);
     rimMat.uniforms.col.value.lerp(col, 0.08);
     dotMat.color.lerp(col, 0.08); eyeGlowMat.color.lerp(col, 0.08);
-    rimMat.uniforms.str.value = st === 'alert' ? 1.4 : st === 'thinking' ? 1.1 : 0.9;
-    eyeGlowMat.opacity = st === 'speaking' ? 0.65 + 0.3 * Math.abs(Math.sin(t * 6)) : 0.85;
+    rimMat.uniforms.str.value = RIM_STR[theme][st] * (1 + tear * 1.2);
+    eyeGlowMat.opacity = (st === 'speaking' ? 0.65 + 0.3 * Math.abs(Math.sin(t * 6)) : 0.85) * (1 + tear);
 
     if (eyeMesh) {
       const dt = performance.now() - blinkT;
