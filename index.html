@@ -930,7 +930,7 @@ try {
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 60);
-  camera.position.set(0, 0, 5.0);
+  camera.position.set(0, 0, 4.4);
 
   const body = new THREE.Group();
   scene.add(body);
@@ -940,7 +940,7 @@ try {
   const shared = () => ({
     uScanY: { value: 0 },
     uScanW: { value: scan.w },
-    uScanAmp: { value: 2.2 },
+    uScanAmp: { value: 1.4 },
   });
 
   /* ---------- fresnel rim material (solid fill) ---------- */
@@ -959,11 +959,11 @@ try {
       uniform float uScanY; uniform float uScanW; uniform float uScanAmp;
       varying vec3 vN; varying vec3 vV; varying float vY;
       void main(){
-        float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.2);
+        float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 3.0);
         float d = abs(vY - uScanY);
         float scan = (1.0 - smoothstep(0.0, uScanW, d)) + 0.35 * (1.0 - smoothstep(uScanW, uScanW * 5.0, d));
         vec3 c = col * f * str + col * scan * uScanAmp * 0.6;
-        gl_FragColor = vec4(c, (f * str + scan * uScanAmp) * 0.38);
+        gl_FragColor = vec4(c, (f * str + scan * uScanAmp) * 0.16);
       }`,
     uniforms: Object.assign({ col: { value: new THREE.Color(THEMES.ultron.idle) }, str: { value: 1.0 } }, shared()),
     transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
@@ -995,7 +995,7 @@ try {
       varying float vY;
       void main(){ vY = (modelMatrix * vec4(position,1.0)).y;
         vec4 mv = modelViewMatrix * vec4(position,1.0);
-        gl_PointSize = 1.7 * (10.0 / -mv.z);
+        gl_PointSize = 1.3 * (10.0 / -mv.z);
         gl_Position = projectionMatrix * mv; }`,
     fragmentShader: `
       uniform vec3 col; uniform float op;
@@ -1009,7 +1009,7 @@ try {
         vec3 c = col * (1.0 + scan * uScanAmp * 1.4);
         gl_FragColor = vec4(c, op * a + scan * 0.6);
       }`,
-    uniforms: Object.assign({ col: { value: new THREE.Color(THEMES.ultron.idle) }, op: { value: 0.15 } }, shared()),
+    uniforms: Object.assign({ col: { value: new THREE.Color(THEMES.ultron.idle) }, op: { value: 0.08 } }, shared()),
     transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
   });
 
@@ -1030,29 +1030,36 @@ try {
     uniforms: { col: { value: new THREE.Color(THEMES.ultron.idle) }, op: { value: 0.85 } },
     transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
   });
-  const disc = new THREE.Mesh(new THREE.CircleGeometry(1.15, 64), discMat);
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(0.6, 64), discMat);
   disc.rotation.x = -Math.PI / 2;
   scene.add(disc);
 
   /* ---------- load model ---------- */
-  new GLTFLoader().load('models/ultron.gltf', (gltf) => {
+  new GLTFLoader().load('models/ultron_head.gltf', (gltf) => {
     gltf.scene.updateMatrixWorld(true);
     const root = new THREE.Group();
     gltf.scene.traverse(src => {
       if (!src.isMesh) return;
+      const name = src.name || '';
       const holder = new THREE.Group();
-      const rim = new THREE.Mesh(src.geometry, rimMat);
-      const wire = new THREE.LineSegments(new THREE.EdgesGeometry(src.geometry, 24), lineMat);
-      const pts = new THREE.Points(src.geometry, dotMat);
       src.updateWorldMatrix(true, false);
-      for (const o of [rim, wire, pts]) o.applyMatrix4(src.matrixWorld);
-      holder.add(rim, wire, pts);
+      if (/pts/i.test(name)) {
+        // dense particle layer only — no edge extraction on the heavy geometry
+        const pts = new THREE.Points(src.geometry, dotMat);
+        pts.applyMatrix4(src.matrixWorld);
+        holder.add(pts);
+      } else {
+        const rim = new THREE.Mesh(src.geometry, rimMat);
+        const wire = new THREE.LineSegments(new THREE.EdgesGeometry(src.geometry, 24), lineMat);
+        rim.applyMatrix4(src.matrixWorld); wire.applyMatrix4(src.matrixWorld);
+        holder.add(rim, wire);
+      }
       root.add(holder);
     });
     const box = new THREE.Box3().setFromObject(root);
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
-    const s = 2.95 / Math.max(size.x, size.y, size.z);
+    const s = 2.55 / Math.max(size.x, size.y, size.z);
     root.position.copy(center).multiplyScalar(-1);
     const scaler = new THREE.Group();
     scaler.add(root); scaler.scale.setScalar(s);
@@ -1098,7 +1105,7 @@ try {
 
     /* scan sweep: rises through the body, ~4.5s per pass with a beat at the ends */
     const cyc = (t % 4.5) / 4.5;
-    scan.y = -1.55 + cyc * 3.1;
+    scan.y = -1.3 + cyc * 2.6;
     const discOp = cyc < 0.02 || cyc > 0.96 ? 0 : 0.85;
 
     rimMat.uniforms.uScanY.value = scan.y;
