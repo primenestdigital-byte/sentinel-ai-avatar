@@ -699,7 +699,7 @@ const setArc = (el, pct) => {
 let lastSeen = 0, autoOn = false;
 async function poll() {
   try {
-    const r = await fetch("/api/telemetry", { cache: "no-store" });
+    const r = await fetch("api/telemetry", { cache: "no-store" });
     const d = await r.json();
     lastSeen = Date.now();
     document.body.classList.remove("stale");
@@ -758,7 +758,7 @@ async function poll() {
 
 async function pollProcs() {
   try {
-    const r = await fetch("/api/processes", { cache: "no-store" });
+    const r = await fetch("api/processes", { cache: "no-store" });
     const d = await r.json();
     $("procBody").innerHTML = d.procs.map(p =>
       `<tr><td class="c">${p.pid}</td><td>${p.name}</td><td style="text-align:right">${p.cpu.toFixed(1)}</td><td style="text-align:right">${p.rss_mb}M</td></tr>`).join("");
