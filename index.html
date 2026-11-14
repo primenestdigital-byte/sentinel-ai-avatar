@@ -7,6 +7,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Michroma&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.165.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.165.0/examples/jsm/"
+  }
+}
+</script>
 <style>
 :root {
   --hud: #38d9ff;             /* state-reactive accent */
@@ -202,7 +210,7 @@ tbody tr:nth-child(odd) { background:rgba(110,205,255,.035); }
   animation:pulse 3.2s ease-in-out infinite; pointer-events:none;
 }
 #facewrap { position:absolute; inset:20%; display:flex; align-items:center; justify-content:center; }
-#face { width:100%; height:100%; }
+#face3d { width:100%; height:100%; display:block; }
 #face .stroke { stroke:var(--hud); opacity:.75; }
 #face .stroke-soft { stroke:var(--hud); opacity:.32; }
 #face .fe { fill:var(--hud); filter:drop-shadow(0 0 4px var(--hud)); transition:opacity .1s; }
@@ -369,7 +377,9 @@ tbody tr:nth-child(odd) { background:rgba(110,205,255,.035); }
       <div id="sweep"></div>
 
       <div id="facewrap">
-        <svg id="face" viewBox="0 0 200 220">
+        <canvas id="face3d"></canvas>
+        <!-- SVG fallback (shown only if WebGL / model load fails) -->
+        <svg id="face" style="display:none" viewBox="0 0 200 220">
           <!-- helmet silhouette -->
           <path class="stroke" d="M100 8 C 148 8 166 38 169 82 C 171 118 156 164 128 194 L 100 210 L 72 194 C 44 164 29 118 31 82 C 34 38 52 8 100 8 Z"
                 fill="none" stroke-width="2"/>
@@ -547,28 +557,37 @@ function setState(s, silent) {
 document.querySelectorAll("#controls button[data-state]").forEach(b =>
   b.onclick = () => { autoOn = false; $("auto").classList.remove("active", "auto-on"); setState(b.dataset.state); });
 
-/* ================= face animation ================= */
-const mouthBars = [...document.querySelectorAll("#mouth .fm")];
-(function mouthLoop() {
-  const now = performance.now();
-  mouthBars.forEach((bar, i) => {
-    let len = 8;
-    if (state === "speaking") len = 6 + Math.abs(Math.sin(now / 55 + i * 1.25)) * 15 * (.4 + Math.random() * .6);
-    else if (state === "thinking") len = 5 + Math.sin(now / 480 + i * .8) * 3;
-    else if (state === "alert") len = 5 + Math.random() * 11;
-    else len = 5 + Math.sin(now / 900 + i * .5) * 1.5;
-    bar.setAttribute("y1", (160).toFixed(1));
-    bar.setAttribute("y2", (160 + Math.max(3, len)).toFixed(1));
-  });
-  requestAnimationFrame(mouthLoop);
-})();
-(function blinkLoop() {
-  setTimeout(() => {
-    document.querySelectorAll("#face .fe").forEach(fe => fe.style.opacity = "0");
-    setTimeout(() => document.querySelectorAll("#face .fe").forEach(fe => fe.style.opacity = "1"), 130);
-    blinkLoop();
-  }, 3400 + Math.random() * 3800);
-})();
+/* ================= face: svg fallback (used only if 3D fails) ================= */
+function initSvgFallback() {
+  const svg = $("face");
+  if (svg.dataset.on) return;
+  svg.dataset.on = "1";
+  svg.style.display = "block";
+  const mouthBars = [...svg.querySelectorAll("#mouth .fm")];
+  (function mouthLoop() {
+    const now = performance.now();
+    mouthBars.forEach((bar, i) => {
+      let len = 8;
+      if (state === "speaking") len = 6 + Math.abs(Math.sin(now / 55 + i * 1.25)) * 15 * (.4 + Math.random() * .6);
+      else if (state === "thinking") len = 5 + Math.sin(now / 480 + i * .8) * 3;
+      else if (state === "alert") len = 5 + Math.random() * 11;
+      else len = 5 + Math.sin(now / 900 + i * .5) * 1.5;
+      bar.setAttribute("y1", "160");
+      bar.setAttribute("y2", (160 + Math.max(3, len)).toFixed(1));
+    });
+    requestAnimationFrame(mouthLoop);
+  })();
+  (function blinkLoop() {
+    setTimeout(() => {
+      svg.querySelectorAll("#face .fe").forEach(fe => fe.style.opacity = "0");
+      setTimeout(() => svg.querySelectorAll("#face .fe").forEach(fe => fe.style.opacity = "1"), 130);
+      blinkLoop();
+    }, 3400 + Math.random() * 3800);
+  })();
+}
+window.__initSvgFallback = initSvgFallback;
+/* if the 3D module hasn't reported in within 7s, fall back to the SVG face */
+setTimeout(() => { if (!window.__face3dReady) { logEv("hologram projector offline — flat display", "w"); initSvgFallback(); } }, 7000);
 
 /* ================= cpu graph ================= */
 const gc = $("cpuGraph"), gctx = gc.getContext("2d");
@@ -791,6 +810,138 @@ poll(); pollProcs();
 logEv("J.A.R.V.I.S. mark vii online", "g");
 logEv("holographic matrix calibrated", "g");
 logEv("telemetry live — real system data", "g");
+</script>
+
+<script type="module">
+/* ================= 3D holographic helmet ================= */
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+const STATE_COLORS = { idle: 0x38d9ff, thinking: 0xb892ff, speaking: 0x52f2a8, alert: 0xff4d4d };
+
+try {
+  const wrap = document.getElementById('facewrap');
+  const canvas = document.getElementById('face3d');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 50);
+  camera.position.set(0, 0.1, 4.4);
+
+  const helmet = new THREE.Group();
+  scene.add(helmet);
+
+  /* materials — color driven live by state */
+  const lineMat = new THREE.LineBasicMaterial({ transparent: true, opacity: 0.42, blending: THREE.AdditiveBlending, depthWrite: false });
+  const eyeMat  = new THREE.LineBasicMaterial({ transparent: true, opacity: 1.0,  blending: THREE.AdditiveBlending, depthWrite: false });
+  const rimVert = `
+    varying vec3 vN; varying vec3 vV;
+    void main(){ vec4 mv = modelViewMatrix * vec4(position,1.0);
+      vN = normalMatrix * normal; vV = -mv.xyz;
+      gl_Position = projectionMatrix * mv; }`;
+  const rimFrag = `
+    uniform vec3 col; uniform float str;
+    varying vec3 vN; varying vec3 vV;
+    void main(){ float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.2);
+      gl_FragColor = vec4(col * f * str, f * str); }`;
+  const rimMat = new THREE.ShaderMaterial({ vertexShader: rimVert, fragmentShader: rimFrag,
+    uniforms: { col: { value: new THREE.Color(STATE_COLORS.idle) }, str: { value: 0.9 } },
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
+  const dotMat = new THREE.PointsMaterial({ size: 0.01, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false });
+  const eyeGlowMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
+
+  let eyeMesh = null, eyeBaseScaleY = 1;
+
+  new GLTFLoader().load('models/helmet.gltf', (gltf) => {
+    const parts = [];
+    gltf.scene.updateMatrixWorld(true);
+    gltf.scene.traverse(o => {
+      if (o.isMesh) {
+        parts.push(o);
+        const box = new THREE.Box3().setFromObject(o);
+        o.userData.box = box;
+      }
+    });
+    // center + normalize scale of the whole model
+    const root = new THREE.Group();
+    for (const src of parts) {
+      const mesh = new THREE.Mesh(src.geometry, rimMat);
+      mesh.name = 'rim:' + (src.name || '');
+      const wire = new THREE.LineSegments(new THREE.EdgesGeometry(src.geometry, 24), lineMat);
+      const pts = new THREE.Points(src.geometry, dotMat);
+      const holder = new THREE.Group();
+      holder.add(mesh, wire, pts);
+      holder.name = src.name || '';
+      // apply source world transform
+      src.updateWorldMatrix(true, false);
+      mesh.applyMatrix4(src.matrixWorld);
+      wire.applyMatrix4(src.matrixWorld);
+      pts.applyMatrix4(src.matrixWorld);
+      root.add(holder);
+      if (/glow/i.test(src.name || '')) {
+        const glow = new THREE.Mesh(src.geometry, eyeGlowMat);
+        glow.applyMatrix4(src.matrixWorld);
+        glow.name = 'eyes';
+        root.add(glow);
+        eyeMesh = glow;
+      }
+    }
+    const box = new THREE.Box3().setFromObject(root);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const s = 2.55 / Math.max(size.x, size.y, size.z);
+    root.position.copy(center).multiplyScalar(-1);
+    const scaler = new THREE.Group();
+    scaler.add(root); scaler.scale.setScalar(s);
+    helmet.add(scaler);
+    if (eyeMesh) eyeBaseScaleY = eyeMesh.scale.y;
+    window.__face3dReady = true;
+    document.dispatchEvent(new CustomEvent('face3d-ready'));
+  }, undefined, () => { window.__initSvgFallback?.(); });
+
+  /* mouse parallax */
+  let mx = 0, my = 0, tmx = 0, tmy = 0;
+  addEventListener('mousemove', e => {
+    tmx = (e.clientX / innerWidth - 0.5) * 2;
+    tmy = (e.clientY / innerHeight - 0.5) * 2;
+  });
+
+  /* blink */
+  let blinkT = 0;
+  setInterval(() => { blinkT = performance.now(); }, 3200 + Math.random() * 3600);
+
+  function fit() {
+    const r = wrap.getBoundingClientRect();
+    if (r.width && r.height) { renderer.setSize(r.width, r.height, false); camera.aspect = r.width / r.height; camera.updateProjectionMatrix(); }
+  }
+  new ResizeObserver(fit).observe(wrap); fit();
+
+  const clock = new THREE.Clock();
+  renderer.setAnimationLoop(() => {
+    const t = clock.getElapsedTime();
+    const st = document.body.dataset.state || 'idle';
+    const col = new THREE.Color(STATE_COLORS[st] ?? STATE_COLORS.idle);
+
+    mx += (tmx - mx) * 0.05; my += (tmy - my) * 0.05;
+    helmet.rotation.y = Math.sin(t * 0.28) * 0.55 + mx * 0.35;
+    helmet.rotation.x = Math.sin(t * 0.4) * 0.08 + my * 0.18 + (st === 'alert' ? Math.sin(t * 9) * 0.02 : 0);
+    const pulse = st === 'speaking' ? 1 + 0.018 * Math.sin(t * 9) : 1;
+    helmet.scale.setScalar(pulse);
+
+    lineMat.color.lerp(col, 0.08); eyeMat.color.lerp(col, 0.08);
+    rimMat.uniforms.col.value.lerp(col, 0.08);
+    dotMat.color.lerp(col, 0.08); eyeGlowMat.color.lerp(col, 0.08);
+    rimMat.uniforms.str.value = st === 'alert' ? 1.4 : st === 'thinking' ? 1.1 : 0.9;
+    eyeGlowMat.opacity = st === 'speaking' ? 0.65 + 0.3 * Math.abs(Math.sin(t * 6)) : 0.85;
+
+    if (eyeMesh) {
+      const dt = performance.now() - blinkT;
+      const k = dt < 260 ? 0.08 : 1;
+      eyeMesh.scale.y += (eyeBaseScaleY * k - eyeMesh.scale.y) * 0.4;
+    }
+    renderer.render(scene, camera);
+  });
+} catch (e) { window.__initSvgFallback?.(); }
 </script>
 </body>
 </html>
