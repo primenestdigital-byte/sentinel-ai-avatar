@@ -1,6 +1,8 @@
-# SENTINEL — Holographic AI Avatar
+# J.A.R.V.I.S. — Holographic Interface
 
-A live, browser-based AI avatar interface in the JARVIS holographic style, with **100% real system telemetry** — nothing simulated.
+A live, browser-based AI avatar interface styled after the Iron Man J.A.R.V.I.S. HUD — central rotating ring assembly, sweep radar, boot sequence — with **100% real system telemetry**, nothing simulated.
+
+> Redesigned 2026-11-14 from the earlier SENTINEL look (original kept as `index.sentinel-v1.bak.html`).
 
 ## Live Demo
 Running at: `http://<server-ip>:9090`
