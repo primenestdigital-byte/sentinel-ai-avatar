@@ -910,7 +910,7 @@ logEv("telemetry live — real system data", "g");
 </script>
 
 <script type="module">
-/* ================= 3D holographic helmet ================= */
+/* ================= 3D holographic ULTRON — full-body scan ================= */
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
@@ -929,90 +929,143 @@ try {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 50);
-  camera.position.set(0, 0.1, 4.4);
+  const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 60);
+  camera.position.set(0, 0, 5.0);
 
-  const helmet = new THREE.Group();
-  scene.add(helmet);
+  const body = new THREE.Group();
+  scene.add(body);
 
-  /* materials — color driven live by state */
-  const lineMat = new THREE.LineBasicMaterial({ transparent: true, opacity: 0.42, blending: THREE.AdditiveBlending, depthWrite: false });
-  const eyeMat  = new THREE.LineBasicMaterial({ transparent: true, opacity: 1.0,  blending: THREE.AdditiveBlending, depthWrite: false });
-  const rimVert = `
-    varying vec3 vN; varying vec3 vV;
-    void main(){ vec4 mv = modelViewMatrix * vec4(position,1.0);
-      vN = normalMatrix * normal; vV = -mv.xyz;
-      gl_Position = projectionMatrix * mv; }`;
-  const rimFrag = `
-    uniform vec3 col; uniform float str;
-    varying vec3 vN; varying vec3 vV;
-    void main(){ float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.2);
-      gl_FragColor = vec4(col * f * str, f * str); }`;
-  const rimMat = new THREE.ShaderMaterial({ vertexShader: rimVert, fragmentShader: rimFrag,
-    uniforms: { col: { value: new THREE.Color(THEMES.ultron.idle) }, str: { value: 1.0 } },
-    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
-  const dotMat = new THREE.PointsMaterial({ size: 0.01, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false });
-  const eyeGlowMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false });
+  /* ---------- shared scan uniforms ---------- */
+  const scan = { y: -1.55, w: 0.055 };
+  const shared = () => ({
+    uScanY: { value: 0 },
+    uScanW: { value: scan.w },
+    uScanAmp: { value: 2.2 },
+  });
 
-  let eyeMesh = null, eyeBaseScaleY = 1;
+  /* ---------- fresnel rim material (solid fill) ---------- */
+  const rimMat = new THREE.ShaderMaterial({
+    vertexShader: `
+      varying vec3 vN; varying vec3 vV; varying float vY;
+      void main(){
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vY = wp.y;
+        vec4 mv = viewMatrix * wp;
+        vN = normalMatrix * normal; vV = -mv.xyz;
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      uniform vec3 col; uniform float str;
+      uniform float uScanY; uniform float uScanW; uniform float uScanAmp;
+      varying vec3 vN; varying vec3 vV; varying float vY;
+      void main(){
+        float f = pow(1.0 - abs(dot(normalize(vN), normalize(vV))), 2.2);
+        float d = abs(vY - uScanY);
+        float scan = (1.0 - smoothstep(0.0, uScanW, d)) + 0.35 * (1.0 - smoothstep(uScanW, uScanW * 5.0, d));
+        vec3 c = col * f * str + col * scan * uScanAmp * 0.6;
+        gl_FragColor = vec4(c, (f * str + scan * uScanAmp) * 0.38);
+      }`,
+    uniforms: Object.assign({ col: { value: new THREE.Color(THEMES.ultron.idle) }, str: { value: 1.0 } }, shared()),
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+  });
 
-  new GLTFLoader().load('models/helmet.gltf', (gltf) => {
-    const parts = [];
+  /* ---------- wireframe line material with scan ---------- */
+  const lineMat = new THREE.ShaderMaterial({
+    vertexShader: `
+      varying float vY;
+      void main(){ vY = (modelMatrix * vec4(position,1.0)).y;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+    fragmentShader: `
+      uniform vec3 col; uniform float op;
+      uniform float uScanY; uniform float uScanW; uniform float uScanAmp;
+      varying float vY;
+      void main(){
+        float d = abs(vY - uScanY);
+        float scan = (1.0 - smoothstep(0.0, uScanW, d));
+        vec3 c = col * (1.0 + scan * uScanAmp);
+        gl_FragColor = vec4(c, op + scan * 0.5);
+      }`,
+    uniforms: Object.assign({ col: { value: new THREE.Color(THEMES.ultron.idle) }, op: { value: 0.5 } }, shared()),
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+
+  /* ---------- vertex point-cloud material with scan ---------- */
+  const dotMat = new THREE.ShaderMaterial({
+    vertexShader: `
+      varying float vY;
+      void main(){ vY = (modelMatrix * vec4(position,1.0)).y;
+        vec4 mv = modelViewMatrix * vec4(position,1.0);
+        gl_PointSize = 1.7 * (10.0 / -mv.z);
+        gl_Position = projectionMatrix * mv; }`,
+    fragmentShader: `
+      uniform vec3 col; uniform float op;
+      uniform float uScanY; uniform float uScanW; uniform float uScanAmp;
+      varying float vY;
+      void main(){
+        vec2 uv = gl_PointCoord - 0.5;
+        float a = smoothstep(0.5, 0.1, length(uv));
+        float d = abs(vY - uScanY);
+        float scan = (1.0 - smoothstep(0.0, uScanW, d));
+        vec3 c = col * (1.0 + scan * uScanAmp * 1.4);
+        gl_FragColor = vec4(c, op * a + scan * 0.6);
+      }`,
+    uniforms: Object.assign({ col: { value: new THREE.Color(THEMES.ultron.idle) }, op: { value: 0.15 } }, shared()),
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+  });
+
+  /* ---------- glowing scan disc that rides the sweep ---------- */
+  const discMat = new THREE.ShaderMaterial({
+    vertexShader: `
+      varying vec2 vUv;
+      void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+    fragmentShader: `
+      uniform vec3 col; uniform float op;
+      varying vec2 vUv;
+      void main(){
+        float r = length(vUv - 0.5) * 2.0;
+        float ring = smoothstep(0.12, 0.02, abs(r - 0.86)) ;
+        float fill = (1.0 - smoothstep(0.2, 1.0, r)) * 0.12;
+        gl_FragColor = vec4(col, (ring + fill) * op);
+      }`,
+    uniforms: { col: { value: new THREE.Color(THEMES.ultron.idle) }, op: { value: 0.85 } },
+    transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+  });
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(1.15, 64), discMat);
+  disc.rotation.x = -Math.PI / 2;
+  scene.add(disc);
+
+  /* ---------- load model ---------- */
+  new GLTFLoader().load('models/ultron.gltf', (gltf) => {
     gltf.scene.updateMatrixWorld(true);
-    gltf.scene.traverse(o => {
-      if (o.isMesh) {
-        parts.push(o);
-        const box = new THREE.Box3().setFromObject(o);
-        o.userData.box = box;
-      }
-    });
-    // center + normalize scale of the whole model
     const root = new THREE.Group();
-    for (const src of parts) {
-      const mesh = new THREE.Mesh(src.geometry, rimMat);
-      mesh.name = 'rim:' + (src.name || '');
+    gltf.scene.traverse(src => {
+      if (!src.isMesh) return;
+      const holder = new THREE.Group();
+      const rim = new THREE.Mesh(src.geometry, rimMat);
       const wire = new THREE.LineSegments(new THREE.EdgesGeometry(src.geometry, 24), lineMat);
       const pts = new THREE.Points(src.geometry, dotMat);
-      const holder = new THREE.Group();
-      holder.add(mesh, wire, pts);
-      holder.name = src.name || '';
-      // apply source world transform
       src.updateWorldMatrix(true, false);
-      mesh.applyMatrix4(src.matrixWorld);
-      wire.applyMatrix4(src.matrixWorld);
-      pts.applyMatrix4(src.matrixWorld);
+      for (const o of [rim, wire, pts]) o.applyMatrix4(src.matrixWorld);
+      holder.add(rim, wire, pts);
       root.add(holder);
-      if (/glow/i.test(src.name || '')) {
-        const glow = new THREE.Mesh(src.geometry, eyeGlowMat);
-        glow.applyMatrix4(src.matrixWorld);
-        glow.name = 'eyes';
-        root.add(glow);
-        eyeMesh = glow;
-      }
-    }
+    });
     const box = new THREE.Box3().setFromObject(root);
     const center = box.getCenter(new THREE.Vector3());
     const size = box.getSize(new THREE.Vector3());
-    const s = 2.55 / Math.max(size.x, size.y, size.z);
+    const s = 2.95 / Math.max(size.x, size.y, size.z);
     root.position.copy(center).multiplyScalar(-1);
     const scaler = new THREE.Group();
     scaler.add(root); scaler.scale.setScalar(s);
-    helmet.add(scaler);
-    if (eyeMesh) eyeBaseScaleY = eyeMesh.scale.y;
+    body.add(scaler);
     window.__face3dReady = true;
-    document.dispatchEvent(new CustomEvent('face3d-ready'));
   }, undefined, () => { window.__initSvgFallback?.(); });
 
-  /* mouse parallax */
+  /* ---------- interaction ---------- */
   let mx = 0, my = 0, tmx = 0, tmy = 0;
   addEventListener('mousemove', e => {
     tmx = (e.clientX / innerWidth - 0.5) * 2;
     tmy = (e.clientY / innerHeight - 0.5) * 2;
   });
-
-  /* blink */
-  let blinkT = 0;
-  setInterval(() => { blinkT = performance.now(); }, 3200 + Math.random() * 3600);
 
   /* ultron glitch tears */
   let tearT = -10;
@@ -1031,29 +1084,37 @@ try {
     const col = new THREE.Color(THEMES[theme][st] ?? THEMES[theme].idle);
 
     mx += (tmx - mx) * 0.05; my += (tmy - my) * 0.05;
-    helmet.rotation.y = Math.sin(t * 0.28) * 0.55 + mx * 0.35;
-    helmet.rotation.x = Math.sin(t * 0.4) * 0.08 + my * 0.18 + (st === 'alert' ? Math.sin(t * 9) * 0.02 : 0);
+    body.rotation.y = Math.sin(t * 0.22) * 0.6 + mx * 0.4;
+    body.rotation.x = Math.sin(t * 0.35) * 0.05 + my * 0.16 + (st === 'alert' ? Math.sin(t * 9) * 0.02 : 0);
 
     /* ultron: random projection tears */
     if (theme === 'ultron' && Math.random() < 0.008) tearT = t;
     const tear = Math.max(0, 1 - (t - tearT) * 6);
-    helmet.rotation.z = tear * (Math.random() - 0.5) * 0.35;
-    helmet.position.x = tear * (Math.random() - 0.5) * 0.14;
+    body.rotation.z = tear * (Math.random() - 0.5) * 0.3;
+    body.position.x = tear * (Math.random() - 0.5) * 0.13;
 
-    const pulse = st === 'speaking' ? 1 + 0.018 * Math.sin(t * 9) : 1;
-    helmet.scale.setScalar(pulse);
+    const pulse = st === 'speaking' ? 1 + 0.015 * Math.sin(t * 9) : 1;
+    body.scale.setScalar(pulse);
 
-    lineMat.color.lerp(col, 0.08); eyeMat.color.lerp(col, 0.08);
+    /* scan sweep: rises through the body, ~4.5s per pass with a beat at the ends */
+    const cyc = (t % 4.5) / 4.5;
+    scan.y = -1.55 + cyc * 3.1;
+    const discOp = cyc < 0.02 || cyc > 0.96 ? 0 : 0.85;
+
+    rimMat.uniforms.uScanY.value = scan.y;
+    lineMat.uniforms.uScanY.value = scan.y;
+    dotMat.uniforms.uScanY.value = scan.y;
+    disc.position.y = scan.y;
+    disc.scale.setScalar(1 / body.scale.y); // don't inherit body pulse
+
     rimMat.uniforms.col.value.lerp(col, 0.08);
-    dotMat.color.lerp(col, 0.08); eyeGlowMat.color.lerp(col, 0.08);
+    lineMat.uniforms.col.value.lerp(col, 0.08);
+    dotMat.uniforms.col.value.lerp(col, 0.08);
+    discMat.uniforms.col.value.lerp(col, 0.08);
     rimMat.uniforms.str.value = RIM_STR[theme][st] * (1 + tear * 1.2);
-    eyeGlowMat.opacity = (st === 'speaking' ? 0.65 + 0.3 * Math.abs(Math.sin(t * 6)) : 0.85) * (1 + tear);
+    discMat.uniforms.op.value = discOp * (1 + tear * 0.8);
+    discMat.uniforms.col.value.lerp(col, 0.08);
 
-    if (eyeMesh) {
-      const dt = performance.now() - blinkT;
-      const k = dt < 260 ? 0.08 : 1;
-      eyeMesh.scale.y += (eyeBaseScaleY * k - eyeMesh.scale.y) * 0.4;
-    }
     renderer.render(scene, camera);
   });
 } catch (e) { window.__initSvgFallback?.(); }

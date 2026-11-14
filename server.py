@@ -193,7 +193,8 @@ class Handler(BaseHTTPRequestHandler):
                     self._send(200, f.read(), "text/html; charset=utf-8")
             except OSError:
                 self._send(404, b"not found", "text/plain")
-        elif self.path in ("/models/helmet.gltf", "/models/helmet.bin"):
+        elif self.path in ("/models/helmet.gltf", "/models/helmet.bin",
+                           "/models/ultron.gltf", "/models/ultron.bin"):
             try:
                 ctype = "model/gltf+json" if self.path.endswith(".gltf") else "application/octet-stream"
                 with open(os.path.join(ROOT, self.path.lstrip("/")), "rb") as f:

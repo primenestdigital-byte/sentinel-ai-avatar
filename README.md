@@ -30,5 +30,6 @@ python3 server.py
 
 No dependencies required — Python 3 standard library only.
 
-## 3D model
-`models/helmet.gltf` + `models/helmet.bin` — Iron Man mask geometry, textures stripped (hologram is wireframe-only). Source: [ThorstenBux/halloween-masks](https://github.com/ThorstenBux/halloween-masks) on GitHub. For personal/non-commercial use.
+## 3D models
+- **`models/ultron.gltf` + `ultron.bin`** (active) — full-body Infinity Ultron, skinned bind pose baked to static world-space geometry, textures stripped. Based on "Infinity Ultron" by [shouryahaldkar](https://sketchfab.com/shouryahaldkar) ([Sketchfab](https://sketchfab.com/3d-models/infinity-ultron-a5554b4fdf144151b95114744f63f511)), licensed CC-BY-4.0.
+- **`models/helmet.gltf` + `helmet.bin`** (unused, kept) — Iron Man mask geometry from [ThorstenBux/halloween-masks](https://github.com/ThorstenBux/halloween-masks). For personal/non-commercial use.
